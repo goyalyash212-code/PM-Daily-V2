@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech News Summary Feed</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+  h1 { text-align: center; margin-bottom: 30px; }
+  .controls { max-width: 800px; margin: 0 auto 20px; text-align: right; }
+  select { padding: 5px 10px; font-size: 16px; }
+  .article { background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 20px; padding: 15px; max-width: 800px; margin-left: auto; margin-right: auto; }
+  .article img { max-width: 100%; height: auto; border-radius: 5px; }
+  .source { font-weight: bold; color: #555; margin-top: 5px; }
+  .summary { margin: 10px 0; }
+  .read-button { display: inline-block; padding: 8px 15px; background-color: #1a73e8; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Tech News Summary Feed</h1>
+
+<div class="controls">
+  <label for="filterSource">Filter by source: </label>
+  <select id="filterSource">
+    <option value="all">All</option>
+  </select>
+</div>
+
+<div id="feed"></div>
+
+<script>
+const RSS_URL = "https://script.google.com/macros/s/AKfycbyrF5qO3-y7jRJDWNXqXPGFVhDN1WHa-S8-_Q5zomjhk8kjpVQqrKfQkhl-ovmYtM1W/exec"; // <-- Replace with your Google Apps Script RSS feed URL
+const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+let articles = [];
+
+async function loadRSS() {
+  try {
+    const response = await fetch(RSS_URL);
+    const text = await response.text();
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "application/xml");
+    const items = Array.from(xml.querySelectorAll("item"));
+
+    articles = items.map(item => {
+      const title = item.querySelector("title")?.textContent || "";
+      const link = item.querySelector("link")?.textContent || "#";
+      const description = item.querySelector("description")?.textContent || "";
+      const img = item.querySelector("media\\:thumbnail")?.getAttribute("url") || "";
+      const source = item.querySelector("category")?.textContent || "";
+      const pubDate = item.querySelector("pubDate")?.textContent || "";
+
+      return { title, link, description, img, source, pubDate: new Date(pubDate) };
+    });
+
+    // Sort articles by published date (latest first)
+    articles.sort((a, b) => b.pubDate - a.pubDate);
+
+    populateFilter();
+    displayArticles();
+  } catch (err) {
+    console.error("Error loading RSS feed:", err);
+    document.getElementById("feed").innerHTML = "<p>Failed to load feed.</p>";
+  }
+}
+
+function populateFilter() {
+  const select = document.getElementById("filterSource");
+  const sources = Array.from(new Set(articles.map(a => a.source))).sort();
+  sources.forEach(src => {
+    if (!Array.from(select.options).some(opt => opt.value === src)) {
+      const option = document.createElement("option");
+      option.value = src;
+      option.textContent = src;
+      select.appendChild(option);
+    }
+  });
+}
+
+function displayArticles(filter = "all") {
+  const feedDiv = document.getElementById("feed");
+  feedDiv.innerHTML = "";
+  articles
+    .filter(a => filter === "all" || a.source === filter)
+    .forEach(a => {
+      const articleDiv = document.createElement("div");
+      articleDiv.className = "article";
+      articleDiv.innerHTML = `
+        <h2>${a.title}</h2>
+        ${a.img ? `<img src="${a.img}" alt="${a.title}">` : ""}
+        ${a.source ? `<div class="source">Source: ${a.source}</div>` : ""}
+        <div class="summary">${a.description}</div>
+        <a href="${a.link}" target="_blank" class="read-button">Read Full Article</a>
+      `;
+      feedDiv.appendChild(articleDiv);
+    });
+}
+
+// Filter event
+document.getElementById("filterSource").addEventListener("change", (e) => {
+  displayArticles(e.target.value);
+});
+
+// Initial load
+loadRSS();
+
+// Auto-refresh every 5 minutes
+setInterval(loadRSS, REFRESH_INTERVAL);
+</script>
+</body>
+</html>
